@@ -3,11 +3,12 @@
 Bruce is licensed under the **GNU Affero General Public License v3.0 or later**
 (AGPL-3.0-or-later); see [`LICENSE`](LICENSE).
 
-Parts of Bruce's RF / sub-GHz module (`src/modules/rf/`) are **derived from**
-other free-software projects. Those portions were modified to fit Bruce's native
-RMT engine, data model and UI, but remain the work of their original authors and
-are used under their respective licenses. Each affected source file carries a
-header pointing back to this document.
+Parts of Bruce's RF / sub-GHz module (`src/modules/rf/`) and the ESL research
+module (`src/modules/esl/`) are **derived from** other free-software projects.
+Those portions were modified to fit Bruce's native RMT engine, data model and
+UI, but remain the work of their original authors and are used under their
+respective licenses. Each affected source file carries a header pointing back
+to this document.
 
 > This file documents attribution for copyleft compliance. It is not legal
 > advice; if you redistribute Bruce, review these obligations yourself.
@@ -52,6 +53,31 @@ header pointing back to this document.
   Files: `src/modules/rf/protocols/rf_registry.{h,cpp}`,
   `src/modules/rf/protocols/rf_decoder.{h,cpp}`,
   `src/modules/rf/protocols/rf_encoder.{h,cpp}`.
+
+## ESL (Electronic Shelf Label) research module
+
+### TagTinker — GPL-3.0-only
+- Upstream: <https://github.com/i12bp8/TagTinker>
+- License: GNU General Public License v3.0 (GPL-3.0-only)
+- Copyright (C) the TagTinker contributors.
+- Combined into Bruce (AGPL-3.0-or-later) under GPLv3 section 13, which
+  explicitly permits combining GPLv3-covered code with an AGPLv3 work.
+- Used by: the ESL wire protocol — CRC16, frame layouts (wake/ping/refresh/
+  image-parameter/image-data/broadcast), the built-in tag model/profile
+  table, the "Color 2.6" wire-vs-glass coordinate remap, and the run-length
+  image payload bit-packing. This is a direct, hardware-independent port:
+  the original functions have no Flipper/furi API dependency.
+  Files: `src/modules/esl/esl_protocol.{h,cpp}`.
+- NOT ported (rewritten instead, for ESP32-S3): TagTinker's IR transmitter
+  (`ir/tagtinker_ir.c`) bit-bangs Flipper's STM32WB55 TIM1 timer and DWT
+  cycle counter directly; only its protocol-required timing CONSTANTS
+  (carrier frequency, PP4 burst/gap durations), derived from that file's
+  register values, were carried over into a new ESP32 RMT-peripheral
+  driver. See the derivation comment at the top of `esl_ir.cpp`.
+  Files: `src/modules/esl/esl_ir.{h,cpp}`.
+- NOT ported at all: TagTinker's Flipper GUI scenes, NFC tag-scanning and
+  WiFi cloud-sync plugin system are unrelated to this module's scope and
+  were not used.
 
 ## NFC / RFID (ST25R3916)
 

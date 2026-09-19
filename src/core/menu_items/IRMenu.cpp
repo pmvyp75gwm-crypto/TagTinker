@@ -2,6 +2,7 @@
 #include "core/display.h"
 #include "core/settings.h"
 #include "core/utils.h"
+#include "modules/esl/esl_menu.h"
 #include "modules/ir/TV-B-Gone.h"
 #include "modules/ir/custom_ir.h"
 #include "modules/ir/ir_jammer.h"
@@ -13,13 +14,14 @@ void IRMenu::optionsMenu() {
     M5.Power.setExtOutput(true); // ENABLE 5V OUTPUT
 #endif
     options = {
-        {"TV-B-Gone", StartTvBGone              },
-        {"Custom IR", otherIRcodes              },
-        {"IR Read",   [=]() { IrRead(); }       },
+        {"TV-B-Gone",    StartTvBGone             },
+        {"Custom IR",    otherIRcodes             },
+        {"IR Read",      [=]() { IrRead(); }      },
 #if !defined(LITE_VERSION)
-        {"IR Jammer", startIrJammer             }, // Simple frequency-adjustable jammer
+        {"IR Jammer",    startIrJammer            }, // Simple frequency-adjustable jammer
 #endif
-        {"Config",    [this]() { configMenu(); }},
+        {"ESL Research", []() { EslMenu(); }      }, // TagTinker-derived ESL research (owned hardware only)
+        {"Config",       [this]() { configMenu(); }},
     };
     addOptionToMainMenu();
 
