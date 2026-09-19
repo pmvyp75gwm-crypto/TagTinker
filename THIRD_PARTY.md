@@ -68,6 +68,13 @@ to this document.
   image payload bit-packing. This is a direct, hardware-independent port:
   the original functions have no Flipper/furi API dependency.
   Files: `src/modules/esl/esl_protocol.{h,cpp}`.
+- Also used by: the image transmission schedule — stage order, per-stage
+  repeat counts and inter-stage delays — transcribed from
+  `scenes/tagtinker_scene_transmit.c` (`tx_send_full_payload` /
+  `tx_send_payload_frames` for general dot-matrix tags, and
+  `tx_send_color26_payload`, which uses a different schedule). The
+  surrounding Flipper scene/threading code was not ported.
+  Files: `src/modules/esl/esl_sequence.{h,cpp}`.
 - NOT ported (rewritten instead, for ESP32-S3): TagTinker's IR transmitter
   (`ir/tagtinker_ir.c`) bit-bangs Flipper's STM32WB55 TIM1 timer and DWT
   cycle counter directly; only its protocol-required timing CONSTANTS

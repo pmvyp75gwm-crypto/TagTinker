@@ -99,6 +99,17 @@ bool esl_type_needs_wh_swap(uint16_t type_code);
 bool esl_profile_needs_wh_swap(const EslTagProfile* profile);
 void esl_profile_glass_size(const EslTagProfile* profile, uint16_t* width, uint16_t* height);
 
+// Store-used Color 2.6 tags keep the barcode on page 1, so page 2 is the
+// image slot; unspecified pages (0 or 1) map there, explicit 2-7 are left
+// alone. (TagTinker: tagtinker_color26_resolve_page)
+uint8_t esl_color26_resolve_page(uint8_t page);
+
+// Wire (px, py) on 152x296 -> glass (bx, by) on 296x152.
+// (TagTinker: tagtinker_color26_proto_to_glass)
+void esl_color26_proto_to_glass(
+    uint16_t proto_w, uint16_t px, uint16_t py, uint16_t* bx, uint16_t* by
+);
+
 // --- Image payload encoding ---------------------------------------------
 bool esl_encode_fn_payload(
     EslPixelAtFn pixel_at, void* ctx, size_t total_pixels, EslCompressionMode mode,

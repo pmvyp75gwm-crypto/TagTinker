@@ -2,6 +2,7 @@
 
 #include "esl_ir.h"
 #include "esl_protocol.h"
+#include "esl_sequence.h"
 
 #include "core/display.h"
 #include "core/mykeyboard.h"
@@ -10,22 +11,6 @@
 #include <vector>
 
 namespace {
-
-// Repeat counts / inter-stage gaps below match the "Color 2.6" image-upload
-// path in TagTinker's scenes/tagtinker_scene_transmit.c
-// (tx_send_color26_payload / TX_COLOR26_WAKE_REPEATS), which was the one
-// orchestration path fully read during porting. Applied here as the
-// generic default for all dot-matrix profiles; TODO before relying on this
-// for anything beyond diagnostics: confirm against upstream whether other
-// profiles want the (unread) general tx_send_image_start repeat=15 path
-// instead.
-constexpr uint16_t kWakeRepeats = 400;
-constexpr uint32_t kStageGapMs = 50;
-// The wake burst is ~400 repeats of a ~19ms frame (several seconds of
-// airtime). esl_ir_transmit() blocks for the whole run, so it is issued in
-// batches: the repeat total stays faithful to upstream while Back stays
-// responsive between batches.
-constexpr uint16_t kWakeBatch = 20;
 
 bool g_have_profile = false;
 EslTagProfile g_profile{};
@@ -147,71 +132,35 @@ void runPipeline(bool dryRun) {
         return;
     }
 
-    uint8_t frame[ESL_MAX_FRAME_SIZE];
-    bool ok = true;
-    bool cancelled = false;
-
-    size_t len = esl_make_wake_frame(frame, g_plid);
-    // Upstream sends repeats=400, i.e. 401 frames total.
-    const uint16_t wakeFrames = kWakeRepeats + 1;
-    for (uint16_t sent = 0; sent < wakeFrames;) {
-        if (check(EscPress)) {
-            cancelled = true;
-            ok = false;
-            break;
-        }
-        uint16_t remaining = (uint16_t)(wakeFrames - sent);
-        uint16_t batch = remaining < kWakeBatch ? remaining : kWakeBatch;
-        drawStatusLine(
-            "ESL Transmit", "Waking target...",
-            String(sent) + " / " + String(wakeFrames) + "  (BACK cancels)"
-        );
-        // repeats = batch - 1, since esl_ir_transmit always sends one frame
-        // plus `repeats` extra ones.
-        ok = esl_ir_transmit(frame, len, (uint16_t)(batch - 1), 1);
-        if (!ok) break;
-        sent = (uint16_t)(sent + batch);
-    }
-    if (ok) delay(kStageGapMs);
-
-    if (ok) {
-        drawStatusLine("ESL Transmit", "Sending image params...", "Press BACK to cancel");
-        len = esl_make_image_param_frame(frame, g_plid, (uint16_t)payload.byte_count, payload.comp_type, 2, w, h, 0, 0);
-        ok = esl_ir_transmit(frame, len, 1, 1);
-        delay(kStageGapMs);
-    }
-
-    for (size_t i = 0; ok && i < frameCount; i++) {
-        if (check(EscPress)) {
-            cancelled = true;
-            ok = false;
-            break;
+    EslSequenceHooks hooks{};
+    hooks.should_continue = [](void*) { return !check(EscPress); };
+    hooks.on_progress = [](void*, EslSequenceStage stage, uint32_t done, uint32_t total) {
+        const char* label = "Working...";
+        switch (stage) {
+            case EslStageWake: label = "Waking target..."; break;
+            case EslStageParams: label = "Sending image params..."; break;
+            case EslStageData: label = "Sending image data..."; break;
+            case EslStageRefresh: label = "Refreshing display..."; break;
         }
         drawStatusLine(
-            "ESL Transmit", "Sending image data...",
-            String(i + 1) + " / " + String(frameCount) + "  (BACK cancels)"
+            "ESL Transmit", label,
+            String(done) + " / " + String(total) + "  (BACK cancels)"
         );
-        len = esl_make_image_data_frame(frame, g_plid, (uint16_t)i, &payload.data[i * ESL_IMAGE_DATA_BYTES_PER_FRAME]);
-        ok = esl_ir_transmit(frame, len, 1, 1);
-        if (ok && (i + 1) < frameCount) delay(kStageGapMs);
-    }
+    };
 
-    if (ok) {
-        delay(kStageGapMs);
-        drawStatusLine("ESL Transmit", "Refreshing display...", "");
-        len = esl_make_refresh_frame(frame, g_plid);
-        ok = esl_ir_transmit(frame, len, 1, 1);
-    }
+    EslSequenceResult res = esl_sequence_send_image(
+        &g_profile, g_plid, &payload, /*page=*/0, w, h, /*pos_x=*/0, /*pos_y=*/0,
+        ESL_DEFAULT_DATA_FRAME_REPEATS, &hooks
+    );
 
     esl_ir_deinit();
     esl_free_image_payload(&payload);
 
-    if (cancelled) {
-        displayWarning("Transmission cancelled", true);
-    } else if (!ok) {
-        displayError("Transmission failed", true);
-    } else {
-        displaySuccess("Test pattern sent", true);
+    switch (res) {
+        case EslSequenceCancelled: displayWarning("Transmission cancelled", true); break;
+        case EslSequenceTxFailed: displayError("Transmission failed", true); break;
+        case EslSequenceBadArgs: displayError("Invalid data: bad payload\nfor this profile", true); break;
+        case EslSequenceOk: displaySuccess("Test pattern sent", true); break;
     }
 }
 

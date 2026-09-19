@@ -89,6 +89,20 @@ bool esl_profile_needs_wh_swap(const EslTagProfile* profile) {
     return profile && esl_type_needs_wh_swap(profile->type_code);
 }
 
+uint8_t esl_color26_resolve_page(uint8_t page) {
+    if (page <= 1U) return 2U;
+    if (page > 7U) return 7U;
+    return page;
+}
+
+void esl_color26_proto_to_glass(
+    uint16_t proto_w, uint16_t px, uint16_t py, uint16_t* bx, uint16_t* by
+) {
+    if (!bx || !by) return;
+    *bx = py;
+    *by = (uint16_t)(proto_w - 1U - px);
+}
+
 void esl_profile_glass_size(const EslTagProfile* profile, uint16_t* width, uint16_t* height) {
     if (!profile || !width || !height) return;
     if (esl_profile_needs_wh_swap(profile)) {
