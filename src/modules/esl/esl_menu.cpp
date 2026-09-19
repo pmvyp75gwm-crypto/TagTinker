@@ -15,6 +15,7 @@ namespace {
 bool g_have_profile = false;
 EslTagProfile g_profile{};
 uint8_t g_plid[4] = {0, 0, 0, 0};
+String g_barcode = "";
 
 String plidToHex() {
     char buf[9];
@@ -174,6 +175,9 @@ void pickProfile() {
         options.push_back({label, [copy]() {
                                 g_profile = copy;
                                 g_have_profile = true;
+                                // The stored barcode described a different
+                                // model, so it no longer matches the target.
+                                g_barcode = "";
                             }});
     }
     if (options.empty()) {
@@ -197,17 +201,65 @@ void setTargetPlid() {
     memcpy(g_plid, parsed, 4);
 }
 
+// A tag's printed 17-digit barcode encodes both its PLID and its model,
+// so this sets the target and the profile in one step -- the normal way
+// to aim at a tag you have in front of you.
+void enterBarcode() {
+    String bc = num_keyboard(g_barcode, ESL_BARCODE_LEN, "Tag barcode (17 digits):");
+    bc.trim();
+    if (bc.length() == 0) return; // user cancelled
+
+    if (!esl_is_barcode_valid(bc.c_str())) {
+        displayError("Invalid barcode: need exactly\n17 digits", true);
+        return;
+    }
+    for (size_t i = 0; i < bc.length(); i++) {
+        if (!isdigit((int)bc[i])) {
+            displayError("Invalid barcode: digits only", true);
+            return;
+        }
+    }
+
+    uint16_t type = 0;
+    esl_barcode_to_type(bc.c_str(), &type);
+
+    EslTagProfile prof{};
+    if (!esl_barcode_to_profile(bc.c_str(), &prof)) {
+        displayError("Unsupported profile:\ntag type " + String(type) + " is unknown", true);
+        return;
+    }
+    if (prof.kind != EslTagKindDotMatrix || prof.width == 0 || prof.height == 0) {
+        displayError(
+            "Unsupported profile:\n" + String(prof.model_name) + " has no image display", true
+        );
+        return;
+    }
+
+    uint8_t plid[4] = {0};
+    if (!esl_barcode_to_plid(bc.c_str(), plid)) {
+        displayError("Could not derive PLID\nfrom barcode", true);
+        return;
+    }
+
+    memcpy(g_plid, plid, 4);
+    g_profile = prof;
+    g_have_profile = true;
+    g_barcode = bc;
+    displaySuccess(String(prof.model_name) + "\n" + String(prof.width) + "x" + String(prof.height), true);
+}
+
 } // namespace
 
 void EslMenu() {
     while (true) {
         String status = g_have_profile ? String(g_profile.model_name) : String("no profile");
         options = {
-            {"Select Tag Model",         pickProfile                    },
-            {"Set Target PLID (hex)",    setTargetPlid                  },
-            {"Dry Run (no TX)",          [=]() { runPipeline(true); }  },
-            {"Send Test Pattern",        [=]() { runPipeline(false); } },
-            {"Back",                     []() {}                       },
+            {"Enter Tag Barcode",     enterBarcode                 },
+            {"Select Tag Model",      pickProfile                  },
+            {"Set Target PLID (hex)", setTargetPlid                },
+            {"Dry Run (no TX)",       [=]() { runPipeline(true); } },
+            {"Send Test Pattern",     [=]() { runPipeline(false); }},
+            {"Back",                  []() {}                      },
         };
         int idx = loopOptions(
             options, MENU_TYPE_SUBMENU,

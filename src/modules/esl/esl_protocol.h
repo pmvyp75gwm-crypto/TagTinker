@@ -42,6 +42,9 @@
 #define ESL_CUSTOM_SIZE_MAX 800U
 #define ESL_CUSTOM_SIZE_STEP 8U
 
+// Printed tag barcodes are exactly 17 digits (TagTinker: TAGTINKER_BC_LEN).
+#define ESL_BARCODE_LEN 17
+
 enum EslTagKind {
     EslTagKindUnknown = 0,
     EslTagKindDotMatrix,
